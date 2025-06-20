@@ -1,0 +1,496 @@
+1 consulta
+
+SELECT
+    s.titulo AS Serie,
+    p.nome AS Pais,
+    COUNT(DISTINCT t.numero_temporada) AS temporadas
+FROM
+    series s
+JOIN
+    paises p ON s.id_pais_origem = p.id_pais
+JOIN
+    temporadas t ON s.id_serie = t.id_serie
+JOIN
+    premiacao_atores pa ON pa.id_serie = s.id_serie
+WHERE
+    p.nome IN ('Reino Unido', 'França', 'Alemanha', 'Espanha', 'Itália')
+GROUP BY
+    s.id_serie,
+    s.titulo,
+    p.nome
+HAVING
+    COUNT(DISTINCT t.numero_temporada) > 3
+    AND COUNT(DISTINCT pa.ano) >= 2;
+
+
+2 consulta
+
+SELECT DISTINCT
+    f.titulo AS filme,
+    pa.premio AS premio_ator,
+    pd.premio AS premio_diretor
+FROM
+    filmes f
+JOIN
+    premiacao_atores pa ON f.id_filme = pa.id_filme
+JOIN
+    premiacao_diretores pd ON f.id_filme = pd.id_filme;
+
+
+3 consulta
+
+SELECT
+    s.titulo,
+    p.nome AS nome_pais,
+    SUM(CASE WHEN a.sexo = 'F' THEN 1 ELSE 0 END) AS num_atrizes,
+    SUM(CASE WHEN a.sexo = 'M' THEN 1 ELSE 0 END) AS num_atores
+FROM
+    series s
+JOIN
+    paises p ON s.id_pais_origem = p.id_pais
+JOIN
+    atores_personagens ap ON s.id_serie = ap.id_serie
+JOIN
+    atores a ON ap.id_ator = a.id_ator
+WHERE
+    p.nome NOT IN ('Reino Unido', 'Espanha', 'França', 'Alemanha', 'Itália')
+    AND s.id_serie IN (
+        SELECT
+            temp.id_serie
+        FROM
+            temporadas temp
+        JOIN
+            episodios ep ON temp.id_temporada = ep.id_temporada
+        JOIN
+            direcao_episodios de ON ep.id_episodio = de.id_episodio
+        GROUP BY
+            temp.id_serie,
+            ep.id_episodio
+        HAVING
+            COUNT(DISTINCT de.id_diretor) > 1
+    )
+GROUP BY
+    s.id_serie,
+    s.titulo,
+    p.nome
+HAVING
+    SUM(CASE WHEN a.sexo = 'F' THEN 1 ELSE 0 END) > SUM(CASE WHEN a.sexo = 'M' THEN 1 ELSE 0 END);
+
+
+4 consulta
+
+SELECT DISTINCT
+    pf.premio,
+    f.titulo AS Filme,
+    f.ano_lancamento AS lançamento,
+    g.nome AS genero,
+    fe.descricao AS faixa_etaria
+FROM
+    premiacao_filmes pf
+JOIN
+    filmes f ON pf.id_filme = f.id_filme
+JOIN
+    generos g ON f.id_genero = g.id_genero
+JOIN
+    faixas_etarias fe ON f.id_faixa = fe.id_faixa
+WHERE
+    f.ano_lancamento < 2003
+    AND g.nome = 'Aventura'
+    AND f.id_faixa NOT IN (2, 3)
+
+
+5 consulta
+
+SELECT DISTINCT 
+    p.nome AS personagem,
+    g.nome AS genero
+FROM personagens p
+JOIN atores_personagens ap ON p.id_personagem = ap.id_personagem
+JOIN atores a ON ap.id_ator = a.id_ator
+JOIN filmes f ON ap.id_filme = f.id_filme
+JOIN generos g ON f.id_genero = g.id_genero
+WHERE g.nome = 'Romance'
+  AND a.id_ator NOT IN (
+    SELECT id_ator FROM premiacao_atores
+);
+
+
+6 consulta
+
+SELECT
+    ep.titulo AS episodio,
+    s.titulo AS serie,
+    (
+        SELECT
+            COUNT(DISTINCT t2.numero_temporada)
+        FROM
+            temporadas t2
+        WHERE
+            t2.id_serie = s.id_serie
+    ) AS temporadas,
+    fa.descricao AS faixa_etaria,
+    d.sexo AS sexo_diretor
+FROM
+    episodios ep
+JOIN
+    temporadas t ON ep.id_temporada = t.id_temporada
+JOIN
+    series s ON t.id_serie = s.id_serie
+JOIN
+    faixas_etarias fa ON s.id_faixa = fa.id_faixa
+LEFT JOIN
+    direcao_episodios de ON ep.id_episodio = de.id_episodio
+LEFT JOIN
+    diretores d ON de.id_diretor = d.id_diretor
+WHERE
+    s.id_serie IN (
+        SELECT
+            s2.id_serie
+        FROM
+            series s2
+        JOIN
+            temporadas t2 ON s2.id_serie = t2.id_serie
+        GROUP BY
+            s2.id_serie
+        HAVING
+            COUNT(DISTINCT t2.numero_temporada) > 3
+    )
+    AND d.sexo = 'F'
+    AND fa.id_faixa = 1
+ORDER BY
+    ep.titulo;
+
+
+7 consulta
+
+SELECT DISTINCT
+    f.titulo AS filme,
+    f.ano_lancamento AS lançamento
+FROM
+    filmes f
+JOIN
+    atores_personagens ap1 ON f.id_filme = ap1.id_filme
+JOIN
+    atores a ON ap1.id_ator = a.id_ator
+WHERE
+    f.ano_lancamento > 2003
+    AND a.id_ator IN (
+        SELECT DISTINCT
+            ap2.id_ator
+        FROM
+            atores_personagens ap2
+        WHERE
+            ap2.id_serie IN (
+                SELECT DISTINCT
+                    id_serie
+                FROM
+                    premiacao_series
+            )
+    );
+
+
+8 consulta
+
+SELECT 
+    a.nome AS ator,
+    
+    -- Subquery para nome da série (antes de 2003)
+    (
+        SELECT s.titulo
+        FROM atores_personagens ap
+        JOIN series s ON ap.id_serie = s.id_serie
+        WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento < 2003
+        FETCH FIRST 1 ROWS ONLY
+    ) AS titulo_serie,
+
+    -- Subquery para ano da série
+    (
+        SELECT s.ano_lancamento
+        FROM atores_personagens ap
+        JOIN series s ON ap.id_serie = s.id_serie
+        WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento < 2003
+        FETCH FIRST 1 ROWS ONLY
+    ) AS ano_serie,
+
+    -- Subquery para nome do filme (após 2003)
+    (
+        SELECT f.titulo
+        FROM atores_personagens ap
+        JOIN filmes f ON ap.id_filme = f.id_filme
+        WHERE ap.id_ator = a.id_ator AND ap.id_filme != 0 AND f.ano_lancamento > 2003
+        ORDER BY f.ano_lancamento DESC
+        FETCH FIRST 1 ROWS ONLY
+    ) AS titulo_filme,
+
+    -- Subquery para ano do filme
+    (
+        SELECT f.ano_lancamento
+        FROM atores_personagens ap
+        JOIN filmes f ON ap.id_filme = f.id_filme
+        WHERE ap.id_ator = a.id_ator AND ap.id_filme != 0 AND f.ano_lancamento > 2003
+        ORDER BY f.ano_lancamento DESC
+        FETCH FIRST 1 ROWS ONLY
+    ) AS ano_filme
+
+FROM atores a
+WHERE 
+    -- Participou de pelo menos uma série antes de 2003
+    EXISTS (
+        SELECT 1 FROM atores_personagens ap
+        JOIN series s ON ap.id_serie = s.id_serie
+        WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento < 2003
+    )
+    -- Não participou de nenhuma série >= 2003
+    AND NOT EXISTS (
+        SELECT 1 FROM atores_personagens ap
+        JOIN series s ON ap.id_serie = s.id_serie
+        WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento >= 2003
+    )
+    -- Participou de pelo menos um filme após 2003
+    AND EXISTS (
+        SELECT 1 FROM atores_personagens ap
+        JOIN filmes f ON ap.id_filme = f.id_filme
+        WHERE ap.id_ator = a.id_ator AND ap.id_filme != 0 AND f.ano_lancamento > 2003
+    )
+    -- Não participou de nenhum filme até 2003
+    AND NOT EXISTS (
+        SELECT 1 FROM atores_personagens ap
+        JOIN filmes f ON ap.id_filme = f.id_filme
+        WHERE ap.id_ator = a.id_ator AND ap.id_filme != 0 AND f.ano_lancamento <= 2003
+    )
+ORDER BY ano_filme DESC;
+
+9 consulta
+
+SELECT e.id_episodio,
+       s.titulo AS serie,
+       e.titulo AS episodio,
+       e.duracao,
+       t.numero_temporada AS Temporada,
+       COUNT(DISTINCT ap.id_ator) AS total_atores
+FROM episodios e
+JOIN temporadas t ON e.id_temporada = t.id_temporada
+JOIN series s ON t.id_serie = s.id_serie
+LEFT JOIN atores_personagens ap ON ap.id_serie = s.id_serie
+WHERE e.duracao > 45
+  AND (
+    SELECT COUNT(*) 
+    FROM episodios e2 
+    WHERE e2.id_temporada = e.id_temporada
+  ) >= 4
+GROUP BY e.id_episodio, e.titulo, e.duracao, s.titulo, t.numero_temporada
+HAVING COUNT(DISTINCT ap.id_ator) < 3
+ORDER BY s.titulo, t.numero_temporada, e.titulo;
+
+
+10 consulta
+
+SELECT f.titulo AS filme,
+       f.ano_lancamento,
+       f.resolucao,
+       d.nome AS diretor_ator
+FROM filmes f
+JOIN direcao_filmes df ON f.id_filme = df.id_filme
+JOIN diretores d ON df.id_diretor = d.id_diretor
+JOIN atores a ON d.nome = a.nome
+WHERE f.resolucao = '4K'
+ORDER BY f.ano_lancamento DESC;
+
+
+11 consulta
+
+SELECT DISTINCT
+    f.titulo AS filme,
+    f.ano_lancamento AS lancamento,
+    a.nome AS ator,
+    p.nome AS personagem,
+    pr.premio,
+    pr.tipo
+FROM filmes f
+JOIN atores_personagens ap ON f.id_filme = ap.id_filme
+JOIN atores a ON ap.id_ator = a.id_ator
+JOIN personagens p ON ap.id_personagem = p.id_personagem
+-- Subconsulta unificada de premiações (ator, diretor ou filme)
+LEFT JOIN (
+    SELECT id_filme, premio, 'Ator' AS tipo
+    FROM premiacao_atores
+    WHERE id_filme IS NOT NULL
+
+    UNION
+
+    SELECT id_filme, premio, 'Diretor' AS tipo
+    FROM premiacao_diretores
+    WHERE id_filme IS NOT NULL
+
+    UNION
+
+    SELECT id_filme, premio, 'Filme' AS tipo
+    FROM premiacao_filmes
+) pr ON pr.id_filme = f.id_filme
+WHERE f.duracao > 180
+  AND f.ano_lancamento < 2010
+  AND a.nome = p.nome
+  AND pr.premio IS NOT NULL
+order by f.titulo;
+
+12 consulta
+
+SELECT DISTINCT
+    s.titulo AS serie,
+    t.numero_temporada AS Temporada,
+    e.titulo AS episodio,
+    e.duracao,
+    a.nome AS ator,
+    av.nota
+FROM series s
+JOIN generos g ON s.id_genero = g.id_genero
+JOIN temporadas t ON t.id_serie = s.id_serie
+JOIN episodios e ON e.id_temporada = t.id_temporada
+JOIN avaliacoes_episodios av ON av.id_episodio = e.id_episodio
+JOIN direcao_episodios d1 ON d1.id_episodio = e.id_episodio
+JOIN (
+    SELECT e.id_temporada, COUNT(DISTINCT d.id_diretor) AS qtd_diretores
+    FROM episodios e
+    JOIN direcao_episodios d ON d.id_episodio = e.id_episodio
+    GROUP BY e.id_temporada
+    HAVING COUNT(DISTINCT d.id_diretor) > 1
+) dir ON dir.id_temporada = t.id_temporada
+JOIN atores_personagens ap ON ap.id_serie = s.id_serie
+JOIN atores a ON a.id_ator = ap.id_ator
+WHERE g.nome IN ('Comédia', 'Ação')
+  AND t.id_temporada IN (
+      SELECT e.id_temporada
+      FROM episodios e
+      JOIN avaliacoes_episodios av ON av.id_episodio = e.id_episodio
+      GROUP BY e.id_temporada
+      HAVING AVG(av.nota) > 7.5
+         AND AVG(e.duracao) BETWEEN 45 AND 50
+  )
+ORDER BY s.titulo, t.numero_temporada, e.titulo;
+
+
+13 consulta
+
+SELECT d.nome AS diretor, 'Filme' AS tipo, ROUND(AVG(af.nota), 2) AS media
+FROM diretores d
+JOIN direcao_filmes df ON d.id_diretor = df.id_diretor
+JOIN avaliacoes_filmes af ON df.id_filme = af.id_filme
+GROUP BY d.nome
+
+UNION ALL
+
+SELECT d.nome, 'Série', ROUND(AVG(ae.nota), 2)
+FROM diretores d
+JOIN direcao_episodios de ON d.id_diretor = de.id_diretor
+JOIN episodios e ON de.id_episodio = e.id_episodio
+JOIN avaliacoes_episodios ae ON e.id_episodio = ae.id_episodio
+GROUP BY d.nome;
+
+14 consulta
+
+WITH filmes_comedia_avaliados AS (
+    SELECT
+        f.id_filme,
+        f.titulo,
+        g.nome AS genero,
+        a.id_ator,
+        a.nome AS nome_ator,
+        avf.nota
+    FROM filmes f
+    JOIN generos g ON f.id_genero = g.id_genero
+    JOIN avaliacoes_filmes avf ON f.id_filme = avf.id_filme
+    JOIN atores_personagens ap ON f.id_filme = ap.id_filme
+    JOIN atores a ON ap.id_ator = a.id_ator
+    WHERE avf.nota > 8.5 AND g.nome = 'Comédia'
+),
+series_comedia_avaliadas AS (
+    SELECT
+        s.id_serie,
+        s.titulo,
+        g.nome AS genero,
+        a.id_ator,
+        a.nome AS nome_ator,
+        avs.nota
+    FROM series s
+    JOIN generos g ON s.id_genero = g.id_genero
+    JOIN avaliacoes_series avs ON s.id_serie = avs.id_serie
+    JOIN atores_personagens ap ON s.id_serie = ap.id_serie
+    JOIN atores a ON ap.id_ator = a.id_ator
+    WHERE avs.nota > 8.5 AND g.nome = 'Comédia'
+),
+filmes_filtrados AS (
+    SELECT *
+    FROM filmes_comedia_avaliados
+    WHERE id_filme IN (
+        SELECT id_filme
+        FROM filmes_comedia_avaliados
+        GROUP BY id_filme
+        HAVING COUNT(DISTINCT id_ator) >= 2
+    )
+),
+series_filtradas AS (
+    SELECT *
+    FROM series_comedia_avaliadas
+    WHERE id_serie IN (
+        SELECT id_serie
+        FROM series_comedia_avaliadas
+        GROUP BY id_serie
+        HAVING COUNT(DISTINCT id_ator) >= 2
+    )
+),
+filmes_unicos AS (
+    SELECT
+        'Filme' AS tipo,
+        titulo,
+        genero,
+        nome_ator,
+        nota,
+        ROW_NUMBER() OVER (PARTITION BY id_filme, id_ator ORDER BY nota DESC) AS rn
+    FROM filmes_filtrados
+),
+series_unicas AS (
+    SELECT
+        'Serie' AS tipo,
+        titulo,
+        genero,
+        nome_ator,
+        nota,
+        ROW_NUMBER() OVER (PARTITION BY id_serie, id_ator ORDER BY nota DESC) AS rn
+    FROM series_filtradas
+)
+
+SELECT tipo, titulo, genero, nome_ator, nota
+FROM (
+    SELECT * FROM filmes_unicos
+    UNION ALL
+    SELECT * FROM series_unicas
+)
+WHERE rn = 1
+ORDER BY titulo;
+
+16 consulta
+
+SELECT * FROM TABLE(listar_total_premiacoes_filmes)
+ORDER BY total_premiacoes DESC;
+
+17 consulta
+
+EXEC inativar_exibicao_por_pais('Estados Unidos');
+
+--ATIVAR
+
+EXEC reativar_exibicao_por_pais('Estados Unidos');
+
+--PESQUISAR
+
+SELECT titulo, exibir FROM filmes WHERE id_pais_origem = (
+  SELECT id_pais FROM paises WHERE nome = 'Estados Unidos'
+)
+
+UNION
+
+SELECT titulo, exibir FROM series WHERE id_pais_origem = (
+  SELECT id_pais FROM paises WHERE nome = 'Estados Unidos'
+);
+
+
