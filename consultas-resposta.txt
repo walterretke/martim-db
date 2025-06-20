@@ -194,7 +194,6 @@ WHERE
 SELECT 
     a.nome AS ator,
     
-    -- Subquery para nome da série (antes de 2003)
     (
         SELECT s.titulo
         FROM atores_personagens ap
@@ -203,7 +202,6 @@ SELECT
         FETCH FIRST 1 ROWS ONLY
     ) AS titulo_serie,
 
-    -- Subquery para ano da série
     (
         SELECT s.ano_lancamento
         FROM atores_personagens ap
@@ -212,7 +210,6 @@ SELECT
         FETCH FIRST 1 ROWS ONLY
     ) AS ano_serie,
 
-    -- Subquery para nome do filme (após 2003)
     (
         SELECT f.titulo
         FROM atores_personagens ap
@@ -222,7 +219,6 @@ SELECT
         FETCH FIRST 1 ROWS ONLY
     ) AS titulo_filme,
 
-    -- Subquery para ano do filme
     (
         SELECT f.ano_lancamento
         FROM atores_personagens ap
@@ -234,25 +230,21 @@ SELECT
 
 FROM atores a
 WHERE 
-    -- Participou de pelo menos uma série antes de 2003
     EXISTS (
         SELECT 1 FROM atores_personagens ap
         JOIN series s ON ap.id_serie = s.id_serie
         WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento < 2003
     )
-    -- Não participou de nenhuma série >= 2003
     AND NOT EXISTS (
         SELECT 1 FROM atores_personagens ap
         JOIN series s ON ap.id_serie = s.id_serie
         WHERE ap.id_ator = a.id_ator AND ap.id_serie != 0 AND s.ano_lancamento >= 2003
     )
-    -- Participou de pelo menos um filme após 2003
     AND EXISTS (
         SELECT 1 FROM atores_personagens ap
         JOIN filmes f ON ap.id_filme = f.id_filme
         WHERE ap.id_ator = a.id_ator AND ap.id_filme != 0 AND f.ano_lancamento > 2003
     )
-    -- Não participou de nenhum filme até 2003
     AND NOT EXISTS (
         SELECT 1 FROM atores_personagens ap
         JOIN filmes f ON ap.id_filme = f.id_filme
@@ -310,7 +302,6 @@ FROM filmes f
 JOIN atores_personagens ap ON f.id_filme = ap.id_filme
 JOIN atores a ON ap.id_ator = a.id_ator
 JOIN personagens p ON ap.id_personagem = p.id_personagem
--- Subconsulta unificada de premiações (ator, diretor ou filme)
 LEFT JOIN (
     SELECT id_filme, premio, 'Ator' AS tipo
     FROM premiacao_atores
@@ -475,19 +466,21 @@ ORDER BY total_premiacoes DESC;
 
 17 consulta
 
+-- para desativao exebicao por pais
+
 EXEC inativar_exibicao_por_pais('Estados Unidos');
 
---ATIVAR
+-- Para ativar a exibicao por pais
 
 EXEC reativar_exibicao_por_pais('Estados Unidos');
 
---PESQUISAR
+-- Para fazer pesquisa
 
 SELECT titulo, exibir FROM filmes WHERE id_pais_origem = (
   SELECT id_pais FROM paises WHERE nome = 'Estados Unidos'
 )
 
-UNION
+Para UNION
 
 SELECT titulo, exibir FROM series WHERE id_pais_origem = (
   SELECT id_pais FROM paises WHERE nome = 'Estados Unidos'
